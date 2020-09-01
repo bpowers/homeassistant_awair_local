@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import logging
 
-from python_awair.devices import AwairLocalDevice
+from python_awair_local_sensors.devices import AwairLocalDevice
 
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
