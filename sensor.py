@@ -5,7 +5,8 @@ from typing import Callable, List, Optional
 from python_awair_local_sensors.devices import AwairLocalDevice
 import voluptuous as vol
 
-from homeassistant.components.awair_local import AwairDataUpdateCoordinator, AwairResult
+from . import AwairDataUpdateCoordinator, AwairResult
+
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import ATTR_ATTRIBUTION, ATTR_DEVICE_CLASS, CONF_ACCESS_TOKEN
