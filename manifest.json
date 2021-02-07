@@ -1,8 +1,9 @@
 {
-  "domain": "awair_local",
-  "name": "Awair Local",
-  "documentation": "https://www.home-assistant.io/integrations/awair_local",
-  "requirements": ["python-awair-local-sensors==0.2.1"],
-  "codeowners": ["@ahayworth", "@bobby", "@danielsjf"],
-  "config_flow": true
+  "domain": "awair",
+  "name": "Awair",
+  "documentation": "https://www.home-assistant.io/integrations/awair",
+  "requirements": ["python_awair==0.2.1"],
+  "codeowners": ["@ahayworth", "@danielsjf"],
+  "config_flow": true,
+  "zeroconf": [{ "type": "_http._tcp.local." }]
 }

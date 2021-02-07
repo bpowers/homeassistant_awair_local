@@ -4,21 +4,37 @@ from asyncio import gather
 from typing import Any, Optional
 
 from async_timeout import timeout
-from python_awair_local_sensors import AwairLocal
+from python_awair import Awair, AwairLocal
+from python_awair.exceptions import AwairError, AuthError
 
-from homeassistant.const import CONF_HOSTS
+from homeassistant.const import CONF_ACCESS_TOKEN
 from homeassistant.core import Config, HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import API_LOCAL_TIMEOUT, DOMAIN, LOGGER, UPDATE_INTERVAL, AwairResult
+from .const import API_TIMEOUT, DOMAIN, LOGGER, UPDATE_INTERVAL, AwairResult
 
 PLATFORMS = ["sensor"]
 
 
 async def async_setup(hass: HomeAssistant, config: Config) -> bool:
     """Set up Awair integration."""
+    return True
+
+
+async def async_migrate_entry(hass, config_entry) -> bool:
+    LOGGER.debug("Migrating from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+        new_data = {
+            **config_entry.data,
+            "local": False,
+        }
+        config_entry.data = {**new_data}
+        config_entry.version = 2
+
+    LOGGER.info("Migration to version %s successful", config_entry.version)
     return True
 
 
@@ -61,33 +77,62 @@ async def async_unload_entry(hass, config_entry) -> bool:
 class AwairDataUpdateCoordinator(DataUpdateCoordinator):
     """Define a wrapper class to update Awair data."""
 
-    _awair: AwairLocal
-
     def __init__(self, hass, config_entry, session) -> None:
         """Set up the AwairDataUpdateCoordinator class."""
-        device_addrs_str = config_entry.data[CONF_HOSTS]
-        device_addrs = [addr.strip() for addr in device_addrs_str.split(",")]
-        self._awair = AwairLocal(session=session, device_addrs=device_addrs)
-        self._config_entry = config_entry
+        if config_entry.data.get("local"):
+            addr = config_entry.data.get("host")
+            self._awair = AwairLocal(device_addrs=[addr], session=session)
+        else:
+            access_token = config_entry.data[CONF_ACCESS_TOKEN]
+            self._awair = Awair(access_token=access_token, session=session)
 
+        self._config_entry = config_entry
         super().__init__(hass, LOGGER, name=DOMAIN, update_interval=UPDATE_INTERVAL)
 
     async def _async_update_data(self) -> Optional[Any]:
         """Update data via Awair client library."""
-        with timeout(API_LOCAL_TIMEOUT):
+        with timeout(API_TIMEOUT):
             try:
-                LOGGER.debug("Fetching devices")
-                devices = await self._awair.devices()
+                if self._config_entry.data.get("local"):
+                    LOGGER.debug("Fetching local data from %s", self._config_entry.data.get("host"))
+                    devices = await self._awair.devices()
+                else:
+                    LOGGER.debug("Fetching users and devices")
+                    user = await self._awair.user()
+                    devices = await user.devices()
+
                 results = await gather(
                     *[self._fetch_air_data(device) for device in devices]
                 )
                 return {result.device.uuid: result for result in results}
+            except AuthError as err:
+                flow_context = {
+                    "source": "reauth",
+                    "unique_id": self._config_entry.unique_id,
+                }
+
+                matching_flows = [
+                    flow
+                    for flow in self.hass.config_entries.flow.async_progress()
+                    if flow["context"] == flow_context
+                ]
+
+                if not matching_flows:
+                    self.hass.async_create_task(
+                        self.hass.config_entries.flow.async_init(
+                            DOMAIN,
+                            context=flow_context,
+                            data=self._config_entry.data,
+                        )
+                    )
+
+                raise UpdateFailed(err) from err
             except Exception as err:
-                raise UpdateFailed(err)
+                raise UpdateFailed(err) from err
 
     async def _fetch_air_data(self, device):
         """Fetch latest air quality data."""
         LOGGER.debug("Fetching data for %s", device.uuid)
         air_data = await device.air_data_latest()
         LOGGER.debug(air_data)
-        return AwairResult(device=device, air_data=air_data)
+        return AwairResult(device=device, air_data=air_data, local=self._config_entry.data.get("local"))

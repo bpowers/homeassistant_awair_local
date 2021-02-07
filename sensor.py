@@ -2,11 +2,10 @@
 
 from typing import Callable, List, Optional
 
-from python_awair_local_sensors.devices import AwairLocalDevice
+from python_awair.devices import AwairDevice, AwairLocalDevice
 import voluptuous as vol
 
-from . import AwairDataUpdateCoordinator, AwairResult
-
+from homeassistant.components.awair import AwairDataUpdateCoordinator, AwairResult
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import SOURCE_IMPORT
 from homeassistant.const import ATTR_ATTRIBUTION, ATTR_DEVICE_CLASS, CONF_ACCESS_TOKEN
@@ -14,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     API_DUST,
@@ -64,11 +64,12 @@ async def async_setup_entry(
     data: List[AwairResult] = coordinator.data.values()
     for result in data:
         if result.air_data:
-            sensors.append(AwairSensor(API_SCORE, result.device, coordinator))
+            sensors.append(AwairSensor(API_SCORE, result, coordinator))
+
             device_sensors = result.air_data.sensors.keys()
             for sensor in device_sensors:
                 if sensor in SENSOR_TYPES:
-                    sensors.append(AwairSensor(sensor, result.device, coordinator))
+                    sensors.append(AwairSensor(sensor, result, coordinator))
 
             # The "DUST" sensor for Awair is a combo pm2.5/pm10 sensor only
             # present on first-gen devices in lieu of separate pm2.5/pm10 sensors.
@@ -78,29 +79,28 @@ async def async_setup_entry(
             # "DUST" sensor actually detected. However, it's still useful data.
             if API_DUST in device_sensors:
                 for alias_kind in DUST_ALIASES:
-                    sensors.append(AwairSensor(alias_kind, result.device, coordinator))
+                    sensors.append(AwairSensor(alias_kind, result, coordinator))
 
     async_add_entities(sensors)
 
 
-class AwairSensor(Entity):
+class AwairSensor(CoordinatorEntity):
     """Defines an Awair sensor entity."""
 
     def __init__(
         self,
         kind: str,
-        device: AwairLocalDevice,
+        result: AwairResult,
         coordinator: AwairDataUpdateCoordinator,
     ) -> None:
         """Set up an individual AwairSensor."""
+        super().__init__(coordinator)
         self._kind = kind
-        self._device = device
-        self._coordinator = coordinator
+        self._device = result.device
+        self._local = result.local
+        if self._local:
+            self._hostname = coordinator._config_entry.title
 
-    @property
-    def should_poll(self) -> bool:
-        """Return the polling requirement of the entity."""
-        return False
 
     @property
     def name(self) -> str:
@@ -108,6 +108,8 @@ class AwairSensor(Entity):
         name = SENSOR_TYPES[self._kind][ATTR_LABEL]
         if self._device.name:
             name = f"{self._device.name} {name}"
+        elif self._local:
+            name = f"{self._hostname} {name}"
 
         return name
 
@@ -123,13 +125,17 @@ class AwairSensor(Entity):
         if self._kind == API_PM25 and API_DUST in self._air_data.sensors:
             unique_id_tag = "DUST"
 
-        return f"{self._device.uuid}_{unique_id_tag}"
+        id_str = f"{self._device.uuid}_{unique_id_tag}"
+        if self._local:
+            id_str += "_local"
+
+        return id_str
 
     @property
     def available(self) -> bool:
         """Determine if the sensor is available based on API results."""
         # If the last update was successful...
-        if self._coordinator.last_update_success and self._air_data:
+        if self.coordinator.last_update_success and self._air_data:
             # and the results included our sensor type...
             if self._kind in self._air_data.sensors:
                 # then we are available.
@@ -205,6 +211,10 @@ class AwairSensor(Entity):
 
         https://docs.developer.getawair.com/?version=latest#awair-score-and-index
         """
+        if self._local:
+            # Local devices do not yet return the Awair indices.
+            return {}
+
         attrs = {ATTR_ATTRIBUTION: ATTRIBUTION}
         if self._kind in self._air_data.indices:
             attrs["awair_index"] = abs(self._air_data.indices[self._kind])
@@ -216,14 +226,20 @@ class AwairSensor(Entity):
     @property
     def device_info(self) -> dict:
         """Device information."""
+        uuid = self._device.uuid
+        if self._local:
+            uuid += "_local"
+
         info = {
-            "identifiers": {(DOMAIN, self._device.uuid)},
+            "identifiers": {(DOMAIN, uuid)},
             "manufacturer": "Awair",
             "model": self._device.model,
         }
 
         if self._device.name:
             info["name"] = self._device.name
+        elif self._local:
+            info["name"] = self._hostname
 
         if self._device.mac_address:
             info["connections"] = {
@@ -232,20 +248,10 @@ class AwairSensor(Entity):
 
         return info
 
-    async def async_added_to_hass(self) -> None:
-        """Connect to dispatcher listening for entity data notifications."""
-        self.async_on_remove(
-            self._coordinator.async_add_listener(self.async_write_ha_state)
-        )
-
-    async def async_update(self) -> None:
-        """Update Awair entity."""
-        await self._coordinator.async_request_refresh()
-
     @property
     def _air_data(self) -> Optional[AwairResult]:
         """Return the latest data for our device, or None."""
-        result: Optional[AwairResult] = self._coordinator.data.get(self._device.uuid)
+        result: Optional[AwairResult] = self.coordinator.data.get(self._device.uuid)
         if result:
             return result.air_data
 

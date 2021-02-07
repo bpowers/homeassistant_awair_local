@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import Union
 import logging
 
-from python_awair_local_sensors.devices import AwairLocalDevice
+from python_awair.devices import AwairDevice, AwairLocalDevice
 
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
@@ -14,20 +15,23 @@ from homeassistant.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_TEMPERATURE,
+    LIGHT_LUX,
+    PERCENTAGE,
     TEMP_CELSIUS,
-    UNIT_PERCENTAGE,
 )
 
 API_CO2 = "carbon_dioxide"
 API_DUST = "dust"
+API_DEW = "dew_point"
 API_HUMID = "humidity"
 API_LUX = "illuminance"
 API_PM10 = "particulate_matter_10"
+API_PM10_EST = "pm10_est"
 API_PM25 = "particulate_matter_2_5"
 API_SCORE = "score"
 API_SPL_A = "sound_pressure_level"
 API_TEMP = "temperature"
-API_LOCAL_TIMEOUT = 2
+API_TIMEOUT = 20
 API_VOC = "volatile_organic_compounds"
 
 ATTRIBUTION = "Awair air quality sensor"
@@ -37,33 +41,33 @@ ATTR_LABEL = "label"
 ATTR_UNIT = "unit"
 ATTR_UNIQUE_ID = "unique_id"
 
-DOMAIN = "awair_local"
+DOMAIN = "awair"
 
 DUST_ALIASES = [API_PM25, API_PM10]
 
 LOGGER = logging.getLogger(__package__)
 
-UPDATE_INTERVAL = timedelta(seconds=30)
+UPDATE_INTERVAL = timedelta(minutes=5)
 
 SENSOR_TYPES = {
     API_SCORE: {
         ATTR_DEVICE_CLASS: None,
         ATTR_ICON: "mdi:blur",
-        ATTR_UNIT: UNIT_PERCENTAGE,
+        ATTR_UNIT: PERCENTAGE,
         ATTR_LABEL: "Awair score",
         ATTR_UNIQUE_ID: "score",  # matches legacy format
     },
     API_HUMID: {
         ATTR_DEVICE_CLASS: DEVICE_CLASS_HUMIDITY,
         ATTR_ICON: None,
-        ATTR_UNIT: UNIT_PERCENTAGE,
+        ATTR_UNIT: PERCENTAGE,
         ATTR_LABEL: "Humidity",
         ATTR_UNIQUE_ID: "HUMID",  # matches legacy format
     },
     API_LUX: {
         ATTR_DEVICE_CLASS: DEVICE_CLASS_ILLUMINANCE,
         ATTR_ICON: None,
-        ATTR_UNIT: "lx",
+        ATTR_UNIT: LIGHT_LUX,
         ATTR_LABEL: "Illuminance",
         ATTR_UNIQUE_ID: "illuminance",
     },
@@ -102,6 +106,13 @@ SENSOR_TYPES = {
         ATTR_LABEL: "PM10",
         ATTR_UNIQUE_ID: "PM10",  # matches legacy format
     },
+    API_PM10_EST: {
+        ATTR_DEVICE_CLASS: None,
+        ATTR_ICON: "mdi:blur",
+        ATTR_UNIT: CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        ATTR_LABEL: "PM10",
+        ATTR_UNIQUE_ID: "PM10",  # matches legacy format
+    },
     API_CO2: {
         ATTR_DEVICE_CLASS: None,
         ATTR_ICON: "mdi:cloud",
@@ -109,12 +120,20 @@ SENSOR_TYPES = {
         ATTR_LABEL: "Carbon dioxide",
         ATTR_UNIQUE_ID: "CO2",  # matches legacy format
     },
+    API_DEW: {
+        ATTR_DEVICE_CLASS: None,
+        ATTR_ICON: "mdi:water",
+        ATTR_UNIT: TEMP_CELSIUS,
+        ATTR_LABEL: "Dew point",
+        ATTR_UNIQUE_ID: "dew_point",
+    },
 }
 
 
 @dataclass
 class AwairResult:
-    """Wrapper class to hold an awair device and set of air data."""
+    """Wrapper class to hold an Awair device and set of air data."""
 
-    device: AwairLocalDevice
+    device: Union[AwairDevice, AwairLocalDevice]
     air_data: dict
+    local: bool
