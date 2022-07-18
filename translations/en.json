@@ -2,27 +2,18 @@
     "config": {
         "abort": {
             "already_configured": "Account is already configured",
-            "no_devices": "No devices found on the network",
-            "reauth_successful": "Access Token updated successfully"
+            "no_devices": "No devices found on the network"
         },
         "error": {
             "auth": "Invalid access token",
             "unknown": "Unknown Awair API error."
         },
         "step": {
-            "reauth": {
-                "data": {
-                    "access_token": "Access Token",
-                    "email": "Email"
-                },
-                "description": "Please re-enter your Awair developer access token."
-            },
             "user": {
                 "data": {
-                    "access_token": "Access Token",
-                    "email": "Email"
+                    "hosts": "Hostnames or IP addresses, comma separated"
                 },
-                "description": "You must register for an Awair developer access token at: https://developer.getawair.com/onboard/login"
+                "description": "Enter the hostnames or IP addresses of each Awair device separated by a comma."
             }
         }
     }
