@@ -1,7 +1,7 @@
 {
   "domain": "awair_local",
   "version": "0.0.1",
-  "name": "Awair Local",
+  "name": "Awair - Local API",
   "documentation": "https://www.home-assistant.io/integrations/awair_local",
   "requirements": ["python-awair==0.2.3"],
   "codeowners": ["@ahayworth", "@bobby", "@danielsjf"],
