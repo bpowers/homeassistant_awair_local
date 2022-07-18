@@ -2,8 +2,8 @@
 
 from typing import Optional
 
-from python_awair_local_sensors import AwairLocal
-from python_awair_local_sensors.exceptions import AwairError
+from python_awair import AwairLocal
+from python_awair.exceptions import AwairError
 import voluptuous as vol
 
 from homeassistant.config_entries import CONN_CLASS_LOCAL_POLL, ConfigFlow

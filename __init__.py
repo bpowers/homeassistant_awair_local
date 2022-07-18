@@ -4,7 +4,7 @@ from asyncio import gather
 from typing import Any, Optional
 
 from async_timeout import timeout
-from python_awair_local_sensors import AwairLocal
+from python_awair import AwairLocal
 
 from homeassistant.const import CONF_HOSTS
 from homeassistant.core import Config, HomeAssistant

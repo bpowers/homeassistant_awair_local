@@ -2,7 +2,7 @@
 
 from typing import Callable, List, Optional
 
-from python_awair_local_sensors.devices import AwairLocalDevice
+from python_awair.devices import AwairLocalDevice
 import voluptuous as vol
 
 from . import AwairDataUpdateCoordinator, AwairResult
